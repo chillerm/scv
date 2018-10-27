@@ -5,7 +5,8 @@ import logging
 
 import hlt
 from hlt import constants
-from hlt.positionals import Direction
+from hlt.positionals import Direction, Position
+from scv.a_star import Terran
 
 COLLECTING = "collecting"
 DEPOSITING = "depositing"
@@ -15,6 +16,26 @@ game = hlt.Game()
 logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
 game.ready("MyPythonBot")
+
+# # generate an ascii maze
+# size = 20
+# m = make_maze(size, size)
+#
+# # what is the size of it?
+# w = len(m.split('\n')[0])
+# h = len(m.split('\n'))
+#
+# start = (1, 1)  # we choose to start at the upper left corner
+# goal = (w - 2, h - 2)  # we want to reach the lower right corner
+#
+# # let's solve it
+# foundPath = list(Terran(m).astar(start, goal))
+#
+# # print the solution
+# print(drawmaze(m, list(foundPath)))
+
+
+terran = Terran(game.game_map)
 
 ship_states = {}
 while True:
@@ -29,6 +50,9 @@ while True:
 
     position_choices = []
     for ship in me.get_ships():
+        path = list(terran.astar((ship.position.x, ship.position.y), (10, 10)))
+        logging.info("Path of ship to (10, 10): {path}".format(path=str(path)))
+
         if ship.id not in ship_states:
             ship_states[ship.id] = COLLECTING
 
@@ -77,28 +101,3 @@ while True:
 
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
-
-# def test_position_change():
-#     current_position = Position(100, 100)
-#     target_position = Position(0, 0)
-#
-#     logging.info("Getting from {} to {}.".format(current_position, current_position))
-#
-#     while current_position != target_position:
-#         def get_move(current_position, target_position):
-#             if current_position.x > target_position.x:
-#                 return Position(-1, 0)
-#             elif current_position.x < target_position.x:
-#                 return Position(1, 0)
-#             elif current_position.y > target_position.y:
-#                 return Position(0, -1)
-#             elif current_position.y < target_position.y:
-#                 return Position(0, 1)
-#             else:
-#                 return Position(0, 0)
-#
-#         move = get_move()
-#         logging.info("Moving {} from {}".format(current_position, move))
-#         current_position = current_position + move
-#
-#
