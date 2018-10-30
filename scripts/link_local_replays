@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+echo "Creating symlink: ln -s ${HALITE_HOME:=${HOME}}/replays ${HALITE_IN_A_BOX_HOME:=${HOME}/halite-in-a-box}/replays"
+ln -s "${HALITE_HOME:=${HOME}}/replays ${HALITE_IN_A_BOX_HOME:=${HOME}/halite-in-a-box}/replays"
