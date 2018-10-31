@@ -4,7 +4,6 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-astar = "*"
 
 [dev-packages]
 

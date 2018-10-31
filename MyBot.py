@@ -6,38 +6,34 @@ import logging
 import hlt
 from hlt import constants
 from hlt.positionals import Direction, Position
-from scv.a_star import Terran
 
 COLLECTING = "collecting"
 DEPOSITING = "depositing"
+NEED_TILE = "need tile"
 
 game = hlt.Game()
 
 logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
-game.ready("MyPythonBot")
+# Value / Cost of a map tile
+tileValues = []
+for i in range(0, game.game_map.height):
+    # Adds value of current tile from with "width" loop
+    current_value = []
+    for j in range(0, game.game_map.width):
+        distanceToShipyard = game.me.shipyard.position - Position(i, j)
+        distance = abs(distanceToShipyard.x) + abs(distanceToShipyard.y)
+        # The weighted value of a tile is:
+        #    either the max a ship can carry (1000) or the amount of halit in a tile (whichever is less)
+        #    MULTIPLED by 0.9^(distance from dropoff) this is the cost of a ship to move (1/10 of it's cargo per move)
+        current_value.append(min(1000, game.game_map[Position(i, j)].halite_amount) * (0.9 ** distance))
+    # Adds value of tiles from the "height" loop (which includes all associated horizontal tiles)
+    tileValues.append(current_value)
 
-# # generate an ascii maze
-# size = 20
-# m = make_maze(size, size)
-#
-# # what is the size of it?
-# w = len(m.split('\n')[0])
-# h = len(m.split('\n'))
-#
-# start = (1, 1)  # we choose to start at the upper left corner
-# goal = (w - 2, h - 2)  # we want to reach the lower right corner
-#
-# # let's solve it
-# foundPath = list(Terran(m).astar(start, goal))
-#
-# # print the solution
-# print(drawmaze(m, list(foundPath)))
-
-
-terran = Terran(game.game_map)
+game.ready("ChillBotTheSecond")
 
 ship_states = {}
+ship_targets = {}
 while True:
     game.update_frame()
 
@@ -46,15 +42,16 @@ while True:
 
     command_queue = []
 
-    direction_order = [Direction.North, Direction.South, Direction.East, Direction.West, Direction.Still]
+    if game.turn_number == 1:
+        logging.info("Spawning Ship.")
+        command_queue.append(me.shipyard.spawn())
+
+    direction_order = Direction.get_all_cardinals() + [Direction.Still]
 
     position_choices = []
     for ship in me.get_ships():
-        path = list(terran.astar((ship.position.x, ship.position.y), (10, 10)))
-        logging.info("Path of ship to (10, 10): {path}".format(path=str(path)))
-
-        if ship.id not in ship_states:
-            ship_states[ship.id] = COLLECTING
+        if ship.id not in ship_states or (ship.halite_amount == 0 and ship.position == me.shipyard.position):
+            ship_states[ship.id] = NEED_TILE
 
         position_options = ship.position.get_surrounding_cardinals() + [ship.position]
 
@@ -78,7 +75,18 @@ while True:
             else:
                 logging.info("Attempting to move to same spot another ship\n")
 
-        if ship.halite_amount == 0 and ship_states[ship.id] == DEPOSITING:
+        if ship_states[ship.id] == NEED_TILE:
+            maxVal = 0
+            maxPos = 0
+            for i in range(0, len(tileValues)):
+                for j in range(0, len(tileValues[i])):
+                    if tileValues[i][j] > maxVal:
+                        maxVal = tileValues[i][j]
+                        maxPos = Position(i, j)
+
+            tileValues[maxPos.x][maxPos.y] = 0
+            ship_targets[ship.id] = maxPos
+
             ship_states[ship.id] = COLLECTING
 
         if ship_states[ship.id] == DEPOSITING:
@@ -87,16 +95,24 @@ while True:
             command_queue.append(ship.move(move))
 
         elif ship_states[ship.id] == COLLECTING:
-            directional_choice = max(halite_dict, key=halite_dict.get)
-            position_choices.append(position_dict[directional_choice])
-            command_queue.append(ship.move(game_map.naive_navigate(ship, position_dict[directional_choice])))
+            direction = game_map.naive_navigate(ship, ship_targets[ship.id])
+            position_choices.append(position_dict[direction])
+            command_queue.append(ship.move(direction))
 
             if ship.halite_amount > constants.MAX_HALITE / 3:
                 ship_states[ship.id] = DEPOSITING
 
-    if game.turn_number <= 200 and me.halite_amount >= (constants.SHIP_COST) and not game_map[
+                distanceToShipyard = game.me.shipyard.position - ship_targets[ship.id]
+                distance = abs(distanceToShipyard.x) + abs(distanceToShipyard.y)
+                current_value = (min(1000, game.game_map[ship_targets[ship.id]].halite_amount) * (0.9 ** distance))
+
+                tileValues[ship_targets[ship.id].x][ship_targets[ship.id].y] = current_value
+
+        # Spawn a ship if our conditions are met.
+    if 5 <= game.turn_number <= 200 and me.halite_amount >= (constants.SHIP_COST * 2) and not game_map[
         me.shipyard].is_occupied:
         # if game.turn_number == 1:
+        logging.info("Spawning Ship on turn {} with {} halie".format(str(game.turn_number), me.halite_amount))
         command_queue.append(me.shipyard.spawn())
 
     # Send your moves back to the game environment, ending this turn.
